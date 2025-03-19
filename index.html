@@ -100,12 +100,12 @@
             <input type="number" id="quantity" value="1" min="1" max="10" readonly>
             <button onclick="increaseQuantity()">+</button>
         </div>
-        <div class="price-display" id="priceDisplay">Total: 0.7 $BERA</div>
+        <div class="price-display" id="priceDisplay">Total: Calculating...</div>
         <button id="mintButton" onclick="connectWalletAndMint()">MINT NOW</button>
     </div>
 
     <script>
-        // Fallback to load Ethers.js if not defined
+        // Load Ethers.js
         if (typeof ethers === 'undefined') {
             const script = document.createElement('script');
             script.src = 'https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js';
@@ -115,8 +115,7 @@
         }
 
         // Contract details
-        const CONTRACT_ADDRESS = "0x271751797Fc05C9880E812F46649964188141Fe6"; // Mainnet contract address
-        const PRICE_PER_NFT = 0.7; // In $BERA
+        const CONTRACT_ADDRESS = "0x271751797Fc05C9880E812F46649964188141Fe6"; // Berachain Mainnet contract
         const MAX_QUANTITY = 10; // Max NFTs per mint for UI
         const CONTRACT_ABI = [
             {
@@ -186,11 +185,21 @@
         const statusDisplay = document.getElementById('status');
         const mintButton = document.getElementById('mintButton');
 
-        // Update price based on quantity
-        function updatePrice() {
-            const quantity = parseInt(quantityInput.value);
-            const totalPrice = (quantity * PRICE_PER_NFT).toFixed(2);
-            priceDisplay.innerText = `Total: ${totalPrice} $BERA`;
+        // Update price based on quantity and contract data
+        async function updatePrice() {
+            try {
+                if (!contract) {
+                    provider = new ethers.providers.Web3Provider(window.ethereum || {});
+                    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                }
+                const mintPrice = await contract.mintPrice();
+                const quantity = parseInt(quantityInput.value);
+                const totalPrice = mintPrice.mul(quantity);
+                priceDisplay.innerText = `Total: ${ethers.utils.formatEther(totalPrice)} $BERA`;
+            } catch (error) {
+                priceDisplay.innerText = `Total: Error fetching price`;
+                console.error('Price update failed:', error);
+            }
         }
 
         // Increase/decrease quantity
@@ -235,36 +244,27 @@
                 mintButton.disabled = true;
                 statusDisplay.innerText = "Connecting wallet...";
 
-                // Check if wallet is installed
                 if (typeof window.ethereum === 'undefined') {
                     throw new Error("Please install a wallet like Rabby or MetaMask!");
                 }
 
-                // Initialize provider
                 provider = new ethers.providers.Web3Provider(window.ethereum);
                 await provider.send("eth_requestAccounts", []);
 
                 signer = provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                // Check current chain and switch to Berachain Mainnet if needed
+                // Switch to Berachain Mainnet (chainId: 80094)
                 const currentChainId = await provider.getNetwork().then(network => network.chainId);
-                const targetChainId = 80094; // Confirmed Chain ID
+                const targetChainId = 80094;
                 if (currentChainId !== targetChainId) {
                     statusDisplay.innerText = "Switching to Berachain Mainnet...";
                     try {
                         await window.ethereum.request({
                             method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x13906' }], // Correct hex for 80094
+                            params: [{ chainId: '0x13906' }],
                         });
-                        // Wait for the network switch to complete
                         await waitForNetworkSwitch(targetChainId);
-                        // Reinitialize provider after network switch
-                        provider = new ethers.providers.Web3Provider(window.ethereum, {
-                            chainId: targetChainId,
-                            name: 'Berachain Mainnet',
-                            ensAddress: null
-                        });
                     } catch (switchError) {
                         if (switchError.code === 4902 || switchError.message.includes("Unrecognized chain ID")) {
                             await window.ethereum.request({
@@ -281,56 +281,64 @@
                                     blockExplorerUrls: ['https://berachain.com']
                                 }],
                             });
-                            // Wait and reinitialize after adding network
                             await waitForNetworkSwitch(targetChainId);
-                            provider = new ethers.providers.Web3Provider(window.ethereum, {
-                                chainId: targetChainId,
-                                name: 'Berachain Mainnet',
-                                ensAddress: null
-                            });
                         } else {
                             throw switchError;
                         }
                     }
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    if ((await provider.getNetwork()).chainId !== targetChainId) {
+                        throw new Error("Failed to switch to Berachain Mainnet");
+                    }
                 }
 
-                // Initialize contract
+                // Initialize contract with signer
                 contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-                // Check remaining supply
+                // Check supply
                 const maxSupply = await contract.MAX_SUPPLY();
                 const mintedCount = await contract.mintedCount();
-                if (mintedCount >= maxSupply) {
+                if (mintedCount.gte(maxSupply)) {
                     throw new Error("All NFTs have been minted!");
                 }
 
                 // Calculate total price
-                const quantity = parseInt(quantityInput.value);
                 const mintPrice = await contract.mintPrice();
+                const quantity = parseInt(quantityInput.value);
                 const totalPrice = mintPrice.mul(quantity);
 
                 statusDisplay.innerText = `Minting ${quantity} NFT(s) for ${ethers.utils.formatEther(totalPrice)} $BERA...`;
 
-                // Call publicMint for each NFT
+                // Mint NFTs (assumes publicMint mints one NFT per call)
+                const gasEstimate = await contract.estimateGas.publicMint(userAddress, { value: mintPrice });
                 for (let i = 0; i < quantity; i++) {
                     const tx = await contract.publicMint(userAddress, {
                         value: mintPrice,
-                        gasLimit: 200000 // Adjust if needed
+                        gasLimit: gasEstimate.mul(12).div(10), // 20% buffer
                     });
-                    await tx.wait();
+                    const receipt = await tx.wait();
+                    if (receipt.status === 0) {
+                        throw new Error(`Mint ${i + 1} failed`);
+                    }
                 }
 
                 statusDisplay.innerText = `Successfully minted ${quantity} NFT(s)!`;
             } catch (error) {
                 console.error(error);
-                statusDisplay.innerText = `Error: ${error.message || error}`;
+                let errorMsg = "Unknown error occurred";
+                if (error.reason) errorMsg = error.reason;
+                else if (error.message) errorMsg = error.message;
+                else if (error.data?.message) errorMsg = error.data.message;
+                statusDisplay.innerText = `Error: ${errorMsg}`;
             } finally {
                 mintButton.disabled = false;
             }
         }
 
-        // Initialize price on load
-        updatePrice();
+        // Initialize price on page load
+        window.addEventListener('load', () => {
+            updatePrice();
+        });
     </script>
 </body>
 </html>
