@@ -240,14 +240,14 @@
                     try {
                         await window.ethereum.request({
                             method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x13906' }], // Confirmed Chain ID in hex
+                            params: [{ chainId: '0x138DE' }], // Confirmed Chain ID in hex
                         });
                     } catch (switchError) {
                         if (switchError.code === 4902 || switchError.message.includes("Unrecognized chain ID")) {
                             await window.ethereum.request({
                                 method: 'wallet_addEthereumChain',
                                 params: [{
-                                    chainId: '0x13906', // Confirmed Chain ID in hex
+                                    chainId: '0x138DE', // Confirmed Chain ID in hex
                                     chainName: 'Berachain Mainnet',
                                     rpcUrls: ['https://rpc.berachain.com'],
                                     nativeCurrency: {
