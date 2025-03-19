@@ -4,15 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>14-Day Trial NFT Mint</title>
-    <!-- Load Ethers.js for blockchain interaction -->
-    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
     <!-- Load Google Fonts for retro arcade font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body {
-            background: #000; /* Black background for arcade feel */
+            background: #000;
             font-family: 'Press Start 2P', cursive;
-            color: #0ff; /* Neon cyan text */
+            color: #0ff;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -21,15 +19,15 @@
             overflow: hidden;
         }
         .container {
-            background: #111; /* Dark gray panel */
+            background: #111;
             padding: 30px;
-            border: 5px solid #f0f; /* Neon pink border */
-            box-shadow: 0 0 20px #f0f, inset 0 0 10px #f0f; /* Neon glow */
+            border: 5px solid #f0f;
+            box-shadow: 0 0 20px #f0f, inset 0 0 10px #f0f;
             text-align: center;
         }
         h1 {
             font-size: 24px;
-            color: #ff0; /* Neon yellow */
+            color: #ff0;
             text-shadow: 0 0 10px #ff0;
             margin-bottom: 20px;
         }
@@ -42,7 +40,7 @@
             margin-bottom: 20px;
         }
         .quantity-controls button {
-            background: #00f; /* Neon blue */
+            background: #00f;
             border: 3px solid #00f;
             color: #fff;
             padding: 10px 15px;
@@ -51,12 +49,12 @@
             box-shadow: 0 0 10px #00f;
         }
         .quantity-controls button:hover {
-            background: #f00; /* Neon red on hover */
+            background: #f00;
             box-shadow: 0 0 15px #f00;
         }
         .quantity-controls input {
             background: #000;
-            border: 3px solid #f00; /* Neon red border */
+            border: 3px solid #f00;
             color: #0ff;
             font-family: 'Press Start 2P', cursive;
             text-align: center;
@@ -71,7 +69,7 @@
             text-shadow: 0 0 5px #ff0;
         }
         #mintButton {
-            background: #f00; /* Neon red */
+            background: #f00;
             border: 5px solid #f00;
             color: #fff;
             padding: 15px 30px;
@@ -82,7 +80,7 @@
             transition: all 0.3s;
         }
         #mintButton:hover {
-            background: #00f; /* Neon blue on hover */
+            background: #00f;
             box-shadow: 0 0 20px #00f;
         }
         #mintButton:disabled {
@@ -107,6 +105,15 @@
     </div>
 
     <script>
+        // Fallback to load Ethers.js if not defined
+        if (typeof ethers === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js';
+            script.onload = () => console.log('Ethers.js loaded');
+            script.onerror = () => console.error('Failed to load Ethers.js');
+            document.head.appendChild(script);
+        }
+
         // Contract details
         const CONTRACT_ADDRESS = "0x577e2b55209Ccc9250C30A71aac978642dA156E8";
         const PRICE_PER_NFT = 0.7; // In $BERA
@@ -243,7 +250,7 @@
 
                 statusDisplay.innerText = `Minting ${quantity} NFT(s) for ${ethers.utils.formatEther(totalPrice)} $BERA...`;
 
-                // Call publicMint for each NFT (contract expects one at a time, loop for quantity)
+                // Call publicMint for each NFT
                 for (let i = 0; i < quantity; i++) {
                     const tx = await contract.publicMint(userAddress, {
                         value: mintPrice,
