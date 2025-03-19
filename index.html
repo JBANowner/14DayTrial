@@ -210,6 +210,25 @@
             }
         }
 
+        // Wait for network switch to complete
+        async function waitForNetworkSwitch(targetChainId) {
+            return new Promise((resolve, reject) => {
+                const checkNetwork = async () => {
+                    try {
+                        const currentChainId = await provider.getNetwork().then(network => network.chainId);
+                        if (currentChainId === targetChainId) {
+                            resolve();
+                        } else {
+                            setTimeout(checkNetwork, 1000); // Check every second
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                checkNetwork();
+            });
+        }
+
         // Connect wallet and mint
         async function connectWalletAndMint() {
             try {
@@ -221,14 +240,9 @@
                     throw new Error("Please install a wallet like Rabby or MetaMask!");
                 }
 
-                // Initialize provider with fallback
-                try {
-                    provider = new ethers.providers.Web3Provider(window.ethereum);
-                    await provider.send("eth_requestAccounts", []);
-                } catch (providerError) {
-                    console.error("Provider initialization failed:", providerError);
-                    throw new Error("Failed to initialize wallet provider. Ensure only one wallet extension is active.");
-                }
+                // Initialize provider
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
 
                 signer = provider.getSigner();
                 const userAddress = await signer.getAddress();
@@ -237,17 +251,26 @@
                 const currentChainId = await provider.getNetwork().then(network => network.chainId);
                 const targetChainId = 80094; // Confirmed Chain ID
                 if (currentChainId !== targetChainId) {
+                    statusDisplay.innerText = "Switching to Berachain Mainnet...";
                     try {
                         await window.ethereum.request({
                             method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x138DE' }], // Confirmed Chain ID in hex
+                            params: [{ chainId: '0x13906' }], // Correct hex for 80094
+                        });
+                        // Wait for the network switch to complete
+                        await waitForNetworkSwitch(targetChainId);
+                        // Reinitialize provider after network switch
+                        provider = new ethers.providers.Web3Provider(window.ethereum, {
+                            chainId: targetChainId,
+                            name: 'Berachain Mainnet',
+                            ensAddress: null
                         });
                     } catch (switchError) {
                         if (switchError.code === 4902 || switchError.message.includes("Unrecognized chain ID")) {
                             await window.ethereum.request({
                                 method: 'wallet_addEthereumChain',
                                 params: [{
-                                    chainId: '0x138DE', // Confirmed Chain ID in hex
+                                    chainId: '0x13906',
                                     chainName: 'Berachain Mainnet',
                                     rpcUrls: ['https://rpc.berachain.com'],
                                     nativeCurrency: {
@@ -257,6 +280,13 @@
                                     },
                                     blockExplorerUrls: ['https://berachain.com']
                                 }],
+                            });
+                            // Wait and reinitialize after adding network
+                            await waitForNetworkSwitch(targetChainId);
+                            provider = new ethers.providers.Web3Provider(window.ethereum, {
+                                chainId: targetChainId,
+                                name: 'Berachain Mainnet',
+                                ensAddress: null
                             });
                         } else {
                             throw switchError;
