@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>14-Day Trial NFT Mint</title>
+    <!-- Load Ethers.js for blockchain interaction -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+    <!-- Load Google Fonts for retro arcade font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #000; /* Black background for arcade feel */
+            font-family: 'Press Start 2P', cursive;
+            color: #0ff; /* Neon cyan text */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .container {
+            background: #111; /* Dark gray panel */
+            padding: 30px;
+            border: 5px solid #f0f; /* Neon pink border */
+            box-shadow: 0 0 20px #f0f, inset 0 0 10px #f0f; /* Neon glow */
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            color: #ff0; /* Neon yellow */
+            text-shadow: 0 0 10px #ff0;
+            margin-bottom: 20px;
+        }
+        .status {
+            font-size: 14px;
+            color: #0ff;
+            margin-bottom: 20px;
+        }
+        .quantity-controls {
+            margin-bottom: 20px;
+        }
+        .quantity-controls button {
+            background: #00f; /* Neon blue */
+            border: 3px solid #00f;
+            color: #fff;
+            padding: 10px 15px;
+            font-family: 'Press Start 2P', cursive;
+            cursor: pointer;
+            box-shadow: 0 0 10px #00f;
+        }
+        .quantity-controls button:hover {
+            background: #f00; /* Neon red on hover */
+            box-shadow: 0 0 15px #f00;
+        }
+        .quantity-controls input {
+            background: #000;
+            border: 3px solid #f00; /* Neon red border */
+            color: #0ff;
+            font-family: 'Press Start 2P', cursive;
+            text-align: center;
+            width: 60px;
+            padding: 5px;
+            margin: 0 10px;
+        }
+        .price-display {
+            font-size: 16px;
+            color: #ff0;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px #ff0;
+        }
+        #mintButton {
+            background: #f00; /* Neon red */
+            border: 5px solid #f00;
+            color: #fff;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 0 15px #f00;
+            transition: all 0.3s;
+        }
+        #mintButton:hover {
+            background: #00f; /* Neon blue on hover */
+            box-shadow: 0 0 20px #00f;
+        }
+        #mintButton:disabled {
+            background: #555;
+            border-color: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>14-Day Trial NFT Mint</h1>
+        <div class="status" id="status">Connect your wallet to mint!</div>
+        <div class="quantity-controls">
+            <button onclick="decreaseQuantity()">-</button>
+            <input type="number" id="quantity" value="1" min="1" max="10" readonly>
+            <button onclick="increaseQuantity()">+</button>
+        </div>
+        <div class="price-display" id="priceDisplay">Total: 0.7 $BERA</div>
+        <button id="mintButton" onclick="connectWalletAndMint()">MINT NOW</button>
+    </div>
+
+    <script>
+        // Contract details
+        const CONTRACT_ADDRESS = "0x577e2b55209Ccc9250C30A71aac978642dA156E8";
+        const PRICE_PER_NFT = 0.7; // In $BERA
+        const MAX_QUANTITY = 10; // Max NFTs per mint for UI
+        const CONTRACT_ABI = [
+            {
+                "inputs": [
+                    {
+                        "internalType": "address",
+                        "name": "recipient",
+                        "type": "address"
+                    }
+                ],
+                "name": "publicMint",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "payable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "mintPrice",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "mintedCount",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "MAX_SUPPLY",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+
+        // Initialize variables
+        let provider, signer, contract;
+        const quantityInput = document.getElementById('quantity');
+        const priceDisplay = document.getElementById('priceDisplay');
+        const statusDisplay = document.getElementById('status');
+        const mintButton = document.getElementById('mintButton');
+
+        // Update price based on quantity
+        function updatePrice() {
+            const quantity = parseInt(quantityInput.value);
+            const totalPrice = (quantity * PRICE_PER_NFT).toFixed(2);
+            priceDisplay.innerText = `Total: ${totalPrice} $BERA`;
+        }
+
+        // Increase/decrease quantity
+        function increaseQuantity() {
+            let quantity = parseInt(quantityInput.value);
+            if (quantity < MAX_QUANTITY) {
+                quantityInput.value = quantity + 1;
+                updatePrice();
+            }
+        }
+
+        function decreaseQuantity() {
+            let quantity = parseInt(quantityInput.value);
+            if (quantity > 1) {
+                quantityInput.value = quantity - 1;
+                updatePrice();
+            }
+        }
+
+        // Connect wallet and mint
+        async function connectWalletAndMint() {
+            try {
+                mintButton.disabled = true;
+                statusDisplay.innerText = "Connecting wallet...";
+
+                // Check if wallet is installed
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error("Please install a wallet like Rabby or MetaMask!");
+                }
+
+                // Request wallet connection
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                const userAddress = await signer.getAddress();
+
+                // Switch to Berachain network (Artio Testnet as example)
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x138f5' }], // Chain ID 80085 in hex (verify with berachain.com)
+                });
+
+                // Initialize contract
+                contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+                // Check remaining supply
+                const maxSupply = await contract.MAX_SUPPLY();
+                const mintedCount = await contract.mintedCount();
+                if (mintedCount >= maxSupply) {
+                    throw new Error("All NFTs have been minted!");
+                }
+
+                // Calculate total price
+                const quantity = parseInt(quantityInput.value);
+                const mintPrice = await contract.mintPrice();
+                const totalPrice = mintPrice.mul(quantity);
+
+                statusDisplay.innerText = `Minting ${quantity} NFT(s) for ${ethers.utils.formatEther(totalPrice)} $BERA...`;
+
+                // Call publicMint for each NFT (contract expects one at a time, loop for quantity)
+                for (let i = 0; i < quantity; i++) {
+                    const tx = await contract.publicMint(userAddress, {
+                        value: mintPrice,
+                        gasLimit: 200000 // Adjust if needed
+                    });
+                    await tx.wait();
+                }
+
+                statusDisplay.innerText = `Successfully minted ${quantity} NFT(s)!`;
+            } catch (error) {
+                console.error(error);
+                statusDisplay.innerText = `Error: ${error.message || error}`;
+            } finally {
+                mintButton.disabled = false;
+            }
+        }
+
+        // Initialize price on load
+        updatePrice();
+    </script>
+</body>
+</html>
