@@ -227,11 +227,33 @@
                 signer = provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                // Switch to Berachain network (Artio Testnet as example)
-                await window.ethereum.request({
-                    method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: '0x138f5' }], // Chain ID 80085 in hex (verify with berachain.com)
-                });
+                // Switch to Berachain Mainnet
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x13906' }], // Berachain Mainnet Chain ID
+                    });
+                } catch (switchError) {
+                    // If the chain isn't added, add it using wallet_addEthereumChain
+                    if (switchError.code === 4902) {
+                        await window.ethereum.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: '0x13906',
+                                chainName: 'Berachain Mainnet',
+                                rpcUrls: ['https://rpc.berachain.com'],
+                                nativeCurrency: {
+                                    name: 'BERA',
+                                    symbol: 'BERA',
+                                    decimals: 18
+                                },
+                                blockExplorerUrls: ['https://berachain.com']
+                            }],
+                        });
+                    } else {
+                        throw switchError;
+                    }
+                }
 
                 // Initialize contract
                 contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
