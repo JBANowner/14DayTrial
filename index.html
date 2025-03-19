@@ -115,7 +115,7 @@
         }
 
         // Contract details
-        const CONTRACT_ADDRESS = "0x271751797Fc05C9880E812F46649964188141Fe6";
+        const CONTRACT_ADDRESS = "0x271751797Fc05C9880E812F46649964188141Fe6"; // Mainnet contract address
         const PRICE_PER_NFT = 0.7; // In $BERA
         const MAX_QUANTITY = 10; // Max NFTs per mint for UI
         const CONTRACT_ABI = [
@@ -221,37 +221,46 @@
                     throw new Error("Please install a wallet like Rabby or MetaMask!");
                 }
 
-                // Request wallet connection
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-                await provider.send("eth_requestAccounts", []);
+                // Initialize provider with fallback
+                try {
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    await provider.send("eth_requestAccounts", []);
+                } catch (providerError) {
+                    console.error("Provider initialization failed:", providerError);
+                    throw new Error("Failed to initialize wallet provider. Ensure only one wallet extension is active.");
+                }
+
                 signer = provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                // Switch to Berachain Mainnet
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x13906' }], // Berachain Mainnet Chain ID
-                    });
-                } catch (switchError) {
-                    // If the chain isn't added, add it using wallet_addEthereumChain
-                    if (switchError.code === 4902) {
+                // Check current chain and switch to Berachain Mainnet if needed
+                const currentChainId = await provider.getNetwork().then(network => network.chainId);
+                const targetChainId = 80094; // Confirmed Chain ID
+                if (currentChainId !== targetChainId) {
+                    try {
                         await window.ethereum.request({
-                            method: 'wallet_addEthereumChain',
-                            params: [{
-                                chainId: '0x13906',
-                                chainName: 'Berachain Mainnet',
-                                rpcUrls: ['https://rpc.berachain.com'],
-                                nativeCurrency: {
-                                    name: 'BERA',
-                                    symbol: 'BERA',
-                                    decimals: 18
-                                },
-                                blockExplorerUrls: ['https://berachain.com']
-                            }],
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x13906' }], // Confirmed Chain ID in hex
                         });
-                    } else {
-                        throw switchError;
+                    } catch (switchError) {
+                        if (switchError.code === 4902 || switchError.message.includes("Unrecognized chain ID")) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0x13906', // Confirmed Chain ID in hex
+                                    chainName: 'Berachain Mainnet',
+                                    rpcUrls: ['https://rpc.berachain.com'],
+                                    nativeCurrency: {
+                                        name: 'BERA',
+                                        symbol: 'BERA',
+                                        decimals: 18
+                                    },
+                                    blockExplorerUrls: ['https://berachain.com']
+                                }],
+                            });
+                        } else {
+                            throw switchError;
+                        }
                     }
                 }
 
