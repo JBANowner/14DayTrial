@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>14-Day Trial NFT Mint</title>
-    <!-- Load Google Fonts for retro arcade font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body {
@@ -105,7 +104,6 @@
     </div>
 
     <script>
-        // Load Ethers.js
         if (typeof ethers === 'undefined') {
             const script = document.createElement('script');
             script.src = 'https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js';
@@ -114,78 +112,60 @@
             document.head.appendChild(script);
         }
 
-        // Contract details
-        const CONTRACT_ADDRESS = "0x271751797Fc05C9880E812F46649964188141Fe6"; // Berachain Mainnet contract
-        const MAX_QUANTITY = 10; // Max NFTs per mint for UI
+        // New contract address
+        const CONTRACT_ADDRESS = "0x883073480Ab40bbF4BDB3cf6b586302f687872e0";
+        const MAX_QUANTITY = 10;
         const CONTRACT_ABI = [
             {
-                "inputs": [
-                    {
-                        "internalType": "address",
-                        "name": "recipient",
-                        "type": "address"
-                    }
-                ],
+                "inputs": [{"internalType": "address", "name": "recipient", "type": "address"}],
                 "name": "publicMint",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
                 "stateMutability": "payable",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "mintPrice",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "mintedCount",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
                 "stateMutability": "view",
                 "type": "function"
             },
             {
                 "inputs": [],
                 "name": "MAX_SUPPLY",
-                "outputs": [
-                    {
-                        "internalType": "uint256",
-                        "name": "",
-                        "type": "uint256"
-                    }
-                ],
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "uint256", "name": "tokenId", "type": "uint256"}],
+                "name": "tokenURI",
+                "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "baseURI",
+                "outputs": [{"internalType": "string", "name": "", "type": "string"}],
                 "stateMutability": "view",
                 "type": "function"
             }
         ];
 
-        // Initialize variables
         let provider, signer, contract;
         const quantityInput = document.getElementById('quantity');
         const priceDisplay = document.getElementById('priceDisplay');
         const statusDisplay = document.getElementById('status');
         const mintButton = document.getElementById('mintButton');
 
-        // Update price based on quantity and contract data
         async function updatePrice() {
             try {
                 if (!contract) {
@@ -202,7 +182,6 @@
             }
         }
 
-        // Increase/decrease quantity
         function increaseQuantity() {
             let quantity = parseInt(quantityInput.value);
             if (quantity < MAX_QUANTITY) {
@@ -219,7 +198,6 @@
             }
         }
 
-        // Wait for network switch to complete
         async function waitForNetworkSwitch(targetChainId) {
             return new Promise((resolve, reject) => {
                 const checkNetwork = async () => {
@@ -228,7 +206,7 @@
                         if (currentChainId === targetChainId) {
                             resolve();
                         } else {
-                            setTimeout(checkNetwork, 1000); // Check every second
+                            setTimeout(checkNetwork, 1000);
                         }
                     } catch (error) {
                         reject(error);
@@ -238,7 +216,6 @@
             });
         }
 
-        // Connect wallet and mint
         async function connectWalletAndMint() {
             try {
                 mintButton.disabled = true;
@@ -254,7 +231,6 @@
                 signer = provider.getSigner();
                 const userAddress = await signer.getAddress();
 
-                // Switch to Berachain Mainnet (chainId: 80094)
                 const currentChainId = await provider.getNetwork().then(network => network.chainId);
                 const targetChainId = 80094;
                 if (currentChainId !== targetChainId) {
@@ -292,24 +268,20 @@
                     }
                 }
 
-                // Initialize contract with signer
                 contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-                // Check supply
                 const maxSupply = await contract.MAX_SUPPLY();
                 const mintedCount = await contract.mintedCount();
                 if (mintedCount.gte(maxSupply)) {
                     throw new Error("All NFTs have been minted!");
                 }
 
-                // Calculate total price
                 const mintPrice = await contract.mintPrice();
                 const quantity = parseInt(quantityInput.value);
                 const totalPrice = mintPrice.mul(quantity);
 
                 statusDisplay.innerText = `Minting ${quantity} NFT(s) for ${ethers.utils.formatEther(totalPrice)} $BERA...`;
 
-                // Mint NFTs (assumes publicMint mints one NFT per call)
                 const gasEstimate = await contract.estimateGas.publicMint(userAddress, { value: mintPrice });
                 for (let i = 0; i < quantity; i++) {
                     const tx = await contract.publicMint(userAddress, {
@@ -322,7 +294,7 @@
                     }
                 }
 
-                statusDisplay.innerText = `Successfully minted ${quantity} NFT(s)!`;
+                statusDisplay.innerHTML = `Successfully minted ${quantity} NFT(s)! <br>Access your album here: <a href="https://jban.tech/14daytrial-download" target="_blank" style="color: #0ff;">Download Page</a>`;
             } catch (error) {
                 console.error(error);
                 let errorMsg = "Unknown error occurred";
@@ -335,7 +307,6 @@
             }
         }
 
-        // Initialize price on page load
         window.addEventListener('load', () => {
             updatePrice();
         });
